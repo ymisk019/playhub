@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>قفزة النجم - لعبة التحدي المشوقة</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Cairo & Tajawal for Arabic Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+            background: #0f172a;
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+        .glow-text {
+            text-shadow: 0 0 12px rgba(244, 63, 94, 0.6), 0 0 24px rgba(168, 85, 247, 0.4);
+        }
+        .btn-gradient {
+            background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+            transition: all 0.2s ease;
+        }
+        .btn-gradient:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(236, 72, 153, 0.4);
+        }
+        .btn-gradient:active {
+            transform: translateY(1px) scale(0.98);
+        }
+        /* Custom modal animation */
+        @keyframes modalPop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .modal-animated {
+            animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen text-white relative select-none">
+
+    <!-- Container for Canvas & UI overlay -->
+    <div class="relative w-full max-w-md h-[100vh] sm:h-[90vh] sm:max-h-[800px] sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-700/50 bg-slate-900 flex flex-col">
+        
+        <!-- Header Overlay (Score Board) -->
+        <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 pointer-events-none bg-gradient-to-b from-slate-950/80 to-transparent">
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-xl shadow">
+                    ⭐
+                </div>
+                <div>
+                    <span class="text-xs text-slate-400 block font-semibold">النقاط</span>
+                    <span id="scoreText" class="text-2xl font-black text-amber-400">0</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <div class="text-right">
+                    <span class="text-xs text-slate-400 block font-semibold">أعلى قياس</span>
+                    <span id="highScoreText" class="text-xl font-bold text-emerald-400">0</span>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-xl shadow">
+                    🏆
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas -->
+        <canvas id="gameCanvas" class="w-full h-full flex-grow"></canvas>
+
+        <!-- Touch Control Hints (Visible on touch devices during gameplay) -->
+        <div id="touchControlsHint" class="absolute bottom-4 left-0 right-0 flex justify-between px-6 pointer-events-none opacity-40 text-xs text-slate-300 transition-opacity">
+            <span>👈 المس اليسار للتحرك</span>
+            <span>المس اليمين للتحرك 👉</span>
+        </div>
+
+        <!-- Main Menu Overlay -->
+        <div id="startOverlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 z-20 text-center">
+            <div class="w-20 h-20 mb-4 rounded-3xl btn-gradient flex items-center justify-center text-4xl shadow-lg animate-bounce">
+                🚀
+            </div>
+            <h1 class="text-4xl font-black mb-2 tracking-wide glow-text bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-purple-400 to-indigo-400">
+                قفزة النجم
+            </h1>
+            <p class="text-slate-300 text-sm max-w-xs mb-8 leading-relaxed">
+                قفز للأعلى، اجمع الجواهر الذهبية وحافظ على بقائك فوق المنصات! لا تسقط للأسفل.
+            </p>
+
+            <button id="startBtn" class="btn-gradient w-4/5 py-4 rounded-2xl font-black text-lg tracking-wider shadow-lg flex items-center justify-center gap-2">
+                <span>ابدأ اللعب الآن</span>
+                <span class="text-xl">🎮</span>
+            </button>
+
+            <!-- Instructions -->
+            <div class="mt-8 text-xs text-slate-400 bg-slate-900/80 p-4 rounded-xl border border-slate-800 max-w-xs">
+                <p class="font-bold text-slate-300 mb-1">طريقة التحكم:</p>
+                <p>• الأسهم <span class="bg-slate-800 px-1 rounded text-pink-400">←</span> <span class="bg-slate-800 px-1 rounded text-pink-400">→</span> أو المفاتيح <span class="bg-slate-800 px-1 rounded text-pink-400">A / D</span></p>
+                <p class="mt-1">• أو باللمس على جاني الشاشة في الهواتف</p>
+            </div>
+        </div>
+
+        <!-- Game Over Modal Overlay -->
+        <div id="gameOverOverlay" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-6 z-30 text-center">
+            <div class="modal-animated bg-slate-900 border border-slate-700/80 p-6 rounded-3xl w-full max-w-xs shadow-2xl flex flex-col items-center">
+                <div class="w-16 h-16 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center text-3xl mb-3">
+                    💥
+                </div>
+                <h2 class="text-2xl font-black text-white mb-1">انتهت اللعبة!</h2>
+                <p class="text-xs text-slate-400 mb-6">لقد سقطت من المنصة!</p>
+
+                <!-- Score Stats Card -->
+                <div class="w-full bg-slate-950/60 rounded-2xl p-4 mb-6 border border-slate-800/80 flex justify-around items-center">
+                    <div>
+                        <span class="text-xs text-slate-400 block mb-1">النتيجة</span>
+                        <span id="finalScore" class="text-2xl font-black text-amber-400">0</span>
+                    </div>
+                    <div class="h-8 w-px bg-slate-800"></div>
+                    <div>
+                        <span class="text-xs text-slate-400 block mb-1">الأعلى</span>
+                        <span id="finalHighScore" class="text-2xl font-black text-emerald-400">0</span>
+                    </div>
+                </div>
+
+                <button id="restartBtn" class="btn-gradient w-full py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2">
+                    <span>إعادة المحاولة</span>
+                    <span class="text-lg">🔄</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Main Game Script -->
+    <script>
+        window.onload = function() {
+            // DOM Elements
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const startOverlay = document.getElementById('startOverlay');
+            const gameOverOverlay = document.getElementById('gameOverOverlay');
+            const startBtn = document.getElementById('startBtn');
+            const restartBtn = document.getElementById('restartBtn');
+            const scoreText = document.getElementById('scoreText');
+            const highScoreText = document.getElementById('highScoreText');
+            const finalScore = document.getElementById('finalScore');
+            const finalHighScore = document.getElementById('finalHighScore');
+
+            // Responsive Canvas Sizing
+            let width, height;
+            function resizeCanvas() {
+                const rect = canvas.parentElement.getBoundingClientRect();
+                width = rect.width;
+                height = rect.height;
+                canvas.width = width;
+                canvas.height = height;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // Audio FX Generator using Web Audio API (No external sound files required)
+            const AudioFX = {
+                ctx: null,
+                init() {
+                    if (!this.ctx) {
+                        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                        this.ctx = new AudioCtx();
+                    }
+                },
+                jump() {
+                    if (!this.ctx) return;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(650, this.ctx.currentTime + 0.12);
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.12);
+                },
+                coin() {
+                    if (!this.ctx) return;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+                    osc.frequency.setValueAtTime(1200, this.ctx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.2);
+                },
+                gameOver() {
+                    if (!this.ctx) return;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.35);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.35);
+                }
+            };
+
+            // Game State
+            let gameState = 'START'; // START, PLAYING, GAMEOVER
+            let score = 0;
+            let highScore = localStorage.getItem('neonJump_highScore') || 0;
+            highScoreText.textContent = highScore;
+
+            // Player Object
+            const player = {
+                x: 0,
+                y: 0,
+                radius: 14,
+                vx: 0,
+                vy: 0,
+                gravity: 0.42,
+                jumpForce: -11.5,
+                speed: 6,
+                color: '#f43f5e',
+                trail: []
+            };
+
+            // Game Arrays
+            let platforms = [];
+            let gems = [];
+            let particles = [];
+            let starsBg = [];
+
+            // Input Handling
+            const keys = { left: false, right: false };
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+            });
+
+            // Touch Controls
+            canvas.addEventListener('touchstart', handleTouch, { passive: false });
+            canvas.addEventListener('touchmove', handleTouch, { passive: false });
+            canvas.addEventListener('touchend', () => { keys.left = false; keys.right = false; });
+
+            function handleTouch(e) {
+                e.preventDefault();
+                if (gameState !== 'PLAYING') return;
+                const touchX = e.touches[0].clientX;
+                const rect = canvas.getBoundingClientRect();
+                const relativeX = touchX - rect.left;
+
+                if (relativeX < width / 2) {
+                    keys.left = true;
+                    keys.right = false;
+                } else {
+                    keys.right = true;
+                    keys.left = false;
+                }
+            }
+
+            // Create Starfield Background
+            function initStars() {
+                starsBg = [];
+                for (let i = 0; i < 45; i++) {
+                    starsBg.push({
+                        x: Math.random() * width,
+                        y: Math.random() * height,
+                        size: Math.random() * 2 + 0.5,
+                        opacity: Math.random() * 0.7 + 0.3,
+                        speed: Math.random() * 0.2 + 0.1
+                    });
+                }
+            }
+
+            // Particle System
+            function createParticles(x, y, color, count = 10) {
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 4 + 1;
+                    particles.push({
+                        x: x,
+                        y: y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        radius: Math.random() * 3 + 1.5,
+                        color: color,
+                        alpha: 1,
+                        decay: Math.random() * 0.03 + 0.015
+                    });
+                }
+            }
+
+            // Generate Platforms
+            function createPlatform(y, isBase = false) {
+                const platWidth = isBase ? width * 0.8 : Math.max(70, Math.random() * 90 + 60);
+                const platX = isBase ? (width - platWidth) / 2 : Math.random() * (width - platWidth);
+                
+                // Platform types: normal, moving, broken/fragile
+                let type = 'normal';
+                if (!isBase && Math.random() < 0.25) type = 'moving';
+
+                const platform = {
+                    x: platX,
+                    y: y,
+                    width: platWidth,
+                    height: 14,
+                    type: type,
+                    vx: type === 'moving' ? (Math.random() < 0.5 ? 1.5 : -1.5) : 0,
+                    color: type === 'moving' ? '#a855f7' : '#38bdf8'
+                };
+
+                platforms.push(platform);
+
+                // Chance to spawn a Gem on top of the platform
+                if (!isBase && Math.random() < 0.45) {
+                    gems.push({
+                        x: platX + platWidth / 2,
+                        y: y - 22,
+                        size: 9,
+                        collected: false,
+                        pulse: 0
+                    });
+                }
+            }
+
+            // Initialize / Reset Game
+            function resetGame() {
+                score = 0;
+                scoreText.textContent = '0';
+                player.x = width / 2;
+                player.y = height - 120;
+                player.vx = 0;
+                player.vy = player.jumpForce;
+                player.trail = [];
+
+                platforms = [];
+                gems = [];
+                particles = [];
+
+                // Base initial platform
+                createPlatform(height - 80, true);
+
+                // Generate initial stack of platforms
+                let y = height - 180;
+                while (y > 0) {
+                    createPlatform(y);
+                    y -= Math.random() * 50 + 65;
+                }
+
+                initStars();
+            }
+
+            // Main Game Loop
+            let lastTime = 0;
+            function gameLoop(timestamp) {
+                const deltaTime = timestamp - lastTime;
+                lastTime = timestamp;
+
+                ctx.clearRect(0, 0, width, height);
+
+                // Render Stars Background
+                ctx.fillStyle = '#ffffff';
+                starsBg.forEach(star => {
+                    ctx.globalAlpha = star.opacity;
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Subtle background parallax movement
+                    if (gameState === 'PLAYING' && player.vy < 0) {
+                        star.y += star.speed;
+                        if (star.y > height) {
+                            star.y = 0;
+                            star.x = Math.random() * width;
+                        }
+                    }
+                });
+                ctx.globalAlpha = 1;
+
+                if (gameState === 'PLAYING') {
+                    updatePlayer();
+                    updatePlatforms();
+                    updateGems();
+                    updateParticles();
+                }
+
+                drawPlatforms();
+                drawGems();
+                drawParticles();
+                drawPlayer();
+
+                requestAnimationFrame(gameLoop);
+            }
+
+            // Player Logic
+            function updatePlayer() {
+                // Horizontal movement
+                if (keys.left) player.vx = -player.speed;
+                else if (keys.right) player.vx = player.speed;
+                else player.vx *= 0.8; // Friction
+
+                player.x += player.vx;
+                player.vy += player.gravity;
+                player.y += player.vy;
+
+                // Screen Wrap Around (Left/Right bounds)
+                if (player.x < -player.radius) player.x = width + player.radius;
+                if (player.x > width + player.radius) player.x = -player.radius;
+
+                // Player Trail Effect
+                player.trail.push({ x: player.x, y: player.y, alpha: 0.6 });
+                if (player.trail.length > 8) player.trail.shift();
+                player.trail.forEach(t => t.alpha *= 0.85);
+
+                // Camera Scroll Upwards when Player ascends past mid-screen
+                if (player.y < height * 0.45) {
+                    const diff = height * 0.45 - player.y;
+                    player.y = height * 0.45;
+
+                    // Increase score based on height climbed
+                    score += Math.floor(diff);
+                    scoreText.textContent = score;
+
+                    // Scroll platforms down
+                    platforms.forEach(p => p.y += diff);
+                    gems.forEach(g => g.y += diff);
+                    particles.forEach(p => p.y += diff);
+
+                    // Remove platforms below screen & generate new ones at top
+                    platforms = platforms.filter(p => p.y < height + 50);
+                    gems = gems.filter(g => g.y < height + 50 && !g.collected);
+
+                    const topPlatformY = Math.min(...platforms.map(p => p.y));
+                    if (topPlatformY > 80) {
+                        createPlatform(topPlatformY - (Math.random() * 45 + 65));
+                    }
+                }
+
+                // Platform Collision Check (only when falling downward)
+                if (player.vy > 0) {
+                    platforms.forEach(p => {
+                        if (
+                            player.x + player.radius > p.x &&
+                            player.x - player.radius < p.x + p.width &&
+                            player.y + player.radius >= p.y &&
+                            player.y + player.radius <= p.y + p.height + player.vy
+                        ) {
+                            player.vy = player.jumpForce;
+                            player.y = p.y - player.radius;
+                            createParticles(player.x, player.y + player.radius, p.color, 8);
+                            AudioFX.jump();
+                        }
+                    });
+                }
+
+                // Check Game Over Condition (Falling below bottom edge)
+                if (player.y - player.radius > height) {
+                    triggerGameOver();
+                }
+            }
+
+            // Update Platforms
+            function updatePlatforms() {
+                platforms.forEach(p => {
+                    if (p.type === 'moving') {
+                        p.x += p.vx;
+                        if (p.x <= 0 || p.x + p.width >= width) {
+                            p.vx *= -1;
+                        }
+                    }
+                });
+            }
+
+            // Update Gems & Check Collections
+            function updateGems() {
+                gems.forEach(g => {
+                    g.pulse += 0.08;
+                    // Distance check for collection
+                    const dist = Math.hypot(player.x - g.x, player.y - g.y);
+                    if (dist < player.radius + g.size && !g.collected) {
+                        g.collected = true;
+                        score += 150;
+                        scoreText.textContent = score;
+                        createParticles(g.x, g.y, '#fbbf24', 15);
+                        AudioFX.coin();
+                    }
+                });
+            }
+
+            // Update Particle Physics
+            function updateParticles() {
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.alpha -= p.decay;
+                    if (p.alpha <= 0) particles.splice(i, 1);
+                }
+            }
+
+            // --- DRAWING FUNCTIONS ---
+
+            function drawPlayer() {
+                // Draw Trail
+                player.trail.forEach(t => {
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, player.radius * 0.7, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(244, 63, 94, ${t.alpha * 0.4})`;
+                    ctx.fill();
+                });
+
+                // Draw Main Glow & Circle
+                ctx.save();
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = '#f43f5e';
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+                ctx.fillStyle = player.color;
+                ctx.fill();
+                ctx.restore();
+
+                // Cute Face/Eyes on Player
+                ctx.fillStyle = '#ffffff';
+                const eyeOffset = player.vx > 0.5 ? 4 : (player.vx < -0.5 ? -4 : 0);
+                ctx.beginPath();
+                ctx.arc(player.x - 4 + eyeOffset, player.y - 3, 3, 0, Math.PI * 2);
+                ctx.arc(player.x + 4 + eyeOffset, player.y - 3, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(player.x - 4 + eyeOffset, player.y - 3, 1.5, 0, Math.PI * 2);
+                ctx.arc(player.x + 4 + eyeOffset, player.y - 3, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            function drawPlatforms() {
+                platforms.forEach(p => {
+                    ctx.save();
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = p.color;
+                    
+                    // Rounded platform bar
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.roundRect(p.x, p.y, p.width, p.height, 7);
+                    ctx.fill();
+
+                    // Inner highlight line
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                    ctx.beginPath();
+                    ctx.roundRect(p.x + 4, p.y + 2, p.width - 8, 3, 2);
+                    ctx.fill();
+
+                    ctx.restore();
+                });
+            }
+
+            function drawGems() {
+                gems.forEach(g => {
+                    if (g.collected) return;
+                    ctx.save();
+                    ctx.translate(g.x, g.y);
+                    const scale = 1 + Math.sin(g.pulse) * 0.15;
+                    ctx.scale(scale, scale);
+
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = '#fbbf24';
+
+                    // Diamond Shape
+                    ctx.beginPath();
+                    ctx.moveTo(0, -g.size);
+                    ctx.lineTo(g.size, 0);
+                    ctx.lineTo(0, g.size);
+                    ctx.lineTo(-g.size, 0);
+                    ctx.closePath();
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.fill();
+
+                    ctx.restore();
+                });
+            }
+
+            function drawParticles() {
+                particles.forEach(p => {
+                    ctx.save();
+                    ctx.globalAlpha = p.alpha;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                    ctx.restore();
+                });
+            }
+
+            // Trigger Game Over
+            function triggerGameOver() {
+                gameState = 'GAMEOVER';
+                AudioFX.gameOver();
+
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('neonJump_highScore', highScore);
+                    highScoreText.textContent = highScore;
+                }
+
+                finalScore.textContent = score;
+                finalHighScore.textContent = highScore;
+                gameOverOverlay.classList.remove('hidden');
+            }
+
+            // Event Listeners for UI
+            startBtn.addEventListener('click', () => {
+                AudioFX.init();
+                startOverlay.classList.add('hidden');
+                resetGame();
+                gameState = 'PLAYING';
+            });
+
+            restartBtn.addEventListener('click', () => {
+                gameOverOverlay.classList.add('hidden');
+                resetGame();
+                gameState = 'PLAYING';
+            });
+
+            // Start Canvas Loop
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
